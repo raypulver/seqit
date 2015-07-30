@@ -1,7 +1,7 @@
 (function () {
   var root = this;
   function seqit () {
-    var reversed = false, config = {}, args = [].slice.call(arguments), stepSize = 1, obj;
+    var reversed = false, config = {}, args = [].slice.call(arguments), stepSize = 1, obj, selectFunction;
     if (args.length > 1 && typeof args[args.length - 1] === 'object' && !Array.isArray(args[args.length - 1])) {
       config = args[args.length - 1];
       args.splice(args.length - 1, 1);
@@ -13,6 +13,9 @@
       }
       if (typeof config.obj === 'object' && !Array.isArray(config.obj)) {
         obj = config.obj;
+      }
+      if (typeof config.select !== 'undefined') {
+        selectFunction = config.select
       }
     }
     switch (typeof args[0]) {
@@ -35,9 +38,14 @@
       case 'object':
         if (Array.isArray(args[0])) {
           return (function (arr) {
+            var searchedFirst = false;
             var step = stepSize;
             var index = (reversed ? (arr.length - 1) : 0);
-            var factory = Propertizer(Iterator);
+            var selector = selectFunction;
+            var reversedCopy = reversed;
+            delete Iterator.prototype;
+            var IteratorPrototype = Object.create(Function.prototype);
+            var factory = Propertizer(IteratorPrototype);
             factory
               .prop('size')
                 .get(function () { return arr.length; })
@@ -78,15 +86,19 @@
                 })
               .prop('step')
                 .get(function () {
+                  if (typeof selector !== 'undefined') {
+                    for (var i = 0; i < step; ++i) {
+                      this.find(selector);
+                    }
+                    return this.index;
+                  }
+                  var saved = index, self = this;
                   if (reversed) index -= step;
                   else index += step;
                   return function (v) {
-                    if (reversed) {
-                      index += step;
-                      index -= v;
-                    } else {
-                      index -= step;
-                      index += v;
+                    index = saved;
+                    for (var i = 0; i < v; ++i) {
+                      self.step;
                     }
                     return index;
                   }
@@ -97,16 +109,22 @@
                 })
               .prop('back')
                 .get(function () {
+                  if (selector) {
+                    this.reversed = Boolean(this.reversed ^ 1);
+                    for (var i = 0; i < step; ++i) {
+                      this.find(selector);
+                    }
+                    this.reversed = Boolean(this.reversed ^ 1);
+                    return this.index;
+                  }
+                  var saved = index, self = this;
                   if (reversed) index += step;
                   else index -= step;
                   return function (v) {
+                    index = saved;
                     if (typeof v === 'number') {
-                      if (reversed) {
-                        index -= step;
-                        index += v;
-                      } else {
-                        index += step;
-                        index -= v;
+                      for (var i = 0; i < v; ++i) {
+                        self.back;
                       }
                     }
                     return index;
@@ -119,6 +137,7 @@
                 .set(function (v) {
                   if (typeof v !== 'number' || v % 1 !== 0) throw TypeError('Index must be an integer.');
                   index = v;
+                  searchedFirst = false;
                 })
               .prop('prev')
                 .get(function () {
@@ -151,8 +170,77 @@
                 .get(function () { return this(); })
                 .set(function (v) { return this(v); })
             .apply();
+            IteratorPrototype.find = find;
+            IteratorPrototype.select = select;
+            Iterator.__proto__ = IteratorPrototype;
             return Iterator;
-            function reset () { index = 0; step = 1; return 0; }
+            function move(n) {
+              if (reversed) index -= n;
+              else index += n;
+            }
+            function select(fn) {
+              selector = fn;
+              this.find(fn);
+              return this;
+            }
+            function find (fn) {
+              if (this !== this.end) {
+                if (searchedFirst) move(1);
+                else searchedFirst = true;
+              }
+              switch (typeof fn) {
+                case 'function':
+                  if (!obj) {
+                    while (this !== this.end) {
+                      if (fn(this(), this.index, arr)) return true;
+                      move(1);
+                    }
+                  } else {
+                    while (this !== this.end) {
+                      if (fn(this().value, this().key, this.index, obj)) return true;
+                      move(1);
+                    }
+                  }
+                  return false;
+                  break;
+                case 'object':
+                  if (!obj) {
+                    while (this !== this.end) {
+                      if (propertyMatch(this(), fn)) return true;
+                      move(1);
+                    }
+                  } else {
+                    while (this !== this.end) {
+                      if (propertyMatch(this().value, fn)) return true;
+                      move(1);
+                    }
+                  }
+                  return false;
+                  break;
+                default:
+                  if (!obj) {
+                    while (this !== this.end) {
+                      if (this() === fn) return true;
+                      move(1);
+                    }
+                  } else {
+                    while (this !== this.end) {
+                      if (this().value === fn) return true;
+                      move(1);
+                    }
+                  }
+                  return false;
+                  break;
+              } 
+            }
+            function reset () {
+              reversed = reversedCopy;
+              index = (reversed ? arr.length - 1 : 0);
+              step = stepSize;
+              selector = void 0;
+              searchedFirst = false;
+              return 0;
+            }
             function Iterator(v) {
               if (index < 0 || index >= arr.length) throw RangeError('Out of range.');
               if (typeof v === 'undefined') {
@@ -184,6 +272,17 @@
     }
   } else {
     root.seqit = seqit;
+  }
+  function propertyMatch(a, b) {
+    if (typeof a !== typeof b) return false;
+    if (typeof a === 'object') {
+      var keys = Object.getOwnPropertyNames(b);
+      for (var i = 0; i < keys.length; ++i) {
+        if (!propertyMatch(a[keys[i]], b[keys[i]])) return false;
+      }
+      return true;
+    }
+    return a === b;
   }
   function ellipses(value, length) {
     if (!length) length = 20;

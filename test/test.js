@@ -44,4 +44,34 @@ describe('seqit - the sequential iterator', function () {
     }
     expect(fill).to.eql(expected);
   });
+  it('can find elements', function () {
+    var fill = [];
+    var arr = [5, 1, 6, 2, 7];
+    var it = seqit(arr);
+    while (it.find(function (v) { return v > 4; })) {
+      fill.push(it());
+    }
+    expect(fill).to.eql([5, 6, 7]);
+  });
+  it('can search for an object', function () {
+    var arr = [{a: 6, b: 'woop'}, {a: 5, b: 'doop'}];
+    var fill = [];
+    for (var it = seqit(arr).select({ b: 'woop' }); it !== it.end; it.next) {
+      fill.push(it().b);
+    }
+    expect(fill).to.eql(['woop']);
+  });
+  it('can be reset in reversed order', function () {
+    var arr = [5, 3, 1];
+    var fill = [];
+    for (var it = seqit(arr, { reversed: true }); it !== it.end; it.next) {
+      fill.push(it());
+    }
+    it.reset;
+    for (; it !== it.end; it.next) {
+      fill.push(it());
+    }
+    arr.reverse();
+    expect(fill).to.eql(arr.concat(arr));
+  });
 });

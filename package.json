@@ -1,6 +1,6 @@
 {
   "name": "seqit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Iterate over anything, in a style reminiscent of C++.",
   "main": "seqit.js",
   "scripts": {
